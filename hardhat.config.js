@@ -21,16 +21,16 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 module.exports = {
   networks: {
     bsc: {
-      url: process.env.BSC_NETWORK_URL,
+      url: process.env.BSC_NETWORK_HTTP_URL,
       chainId: process.env.BSC_CHAIN_ID | 0,
       accounts: [process.env.PRIVATE_KEY]
     }
   },
-  etherscan: {
+  /* etherscan: {
     apiKey: {
       bsc: process.env.BSC_ETHERSCAN_KEY
     }
-  },
+  }, */
   solidity: {
     version: "0.8.4",
     settings: {

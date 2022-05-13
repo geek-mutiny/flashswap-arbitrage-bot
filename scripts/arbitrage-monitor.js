@@ -7,7 +7,11 @@ require("dotenv").config();
 let provider;
 let signer;
 let multicall;
+let flashswap;
 
+let processingSwap = false;
+
+const factoryAddresses = {};
 const routerAddresses = {};
 const pairContracts = {};
 const pairs = {};
@@ -17,7 +21,13 @@ const routerAbi = {};
 const pairAbi = {};
 
 const usdPrices = {
-    [tokens.busd.toLowerCase()]: {}
+    [tokens.busd.toLowerCase()]: {
+        maxPrice: {
+            dex: config[0].name,
+            value: ethers.utils.parseEther("1")
+        },
+        prices: {}
+    }
 };
 
 const amountToSwapPercentage = 15; // 10%
@@ -47,6 +57,7 @@ const parseConfig = async function () {
         routerAbi[dex.name] = getRouterAbi(dex.name);
         pairAbi[dex.name] = getPairAbi(dex.name);
 
+        factoryAddresses[dex.name] = dex.factory;
         routerAddresses[dex.name] = dex.router;
 
         Object.entries(tokens).forEach(function (token0) {
@@ -178,7 +189,7 @@ const syncUsdPrices = async function () {
                     }]
                 });
             } else {
-                usdPrices[tokenAddress.toLowerCase()][dexName] = ethers.utils.parseEther("1");
+                usdPrices[tokenAddress.toLowerCase()].prices[dexName] = ethers.utils.parseEther("1");
             }
         });
 
@@ -195,10 +206,21 @@ const syncUsdPrices = async function () {
         const dexName = reference.split("_")[1];
 
         if (typeof usdPrices[tokenAddress.toLowerCase()] === 'undefined') {
-            usdPrices[tokenAddress.toLowerCase()] = {};
+            usdPrices[tokenAddress.toLowerCase()] = {
+                maxPrice: {
+                    dex: "",
+                    value: ethers.constants.Zero
+                },
+                prices: {}
+            };
         }
 
-        usdPrices[tokenAddress.toLowerCase()][dexName] = typeof price !== 'undefined' ? price : ethers.constants.Zero;
+        usdPrices[tokenAddress.toLowerCase()].prices[dexName] = typeof price !== 'undefined' ? ethers.BigNumber.from(price) : ethers.constants.Zero;
+
+        if (usdPrices[tokenAddress.toLowerCase()].prices[dexName].gt(usdPrices[tokenAddress.toLowerCase()].maxPrice.value)) {
+            usdPrices[tokenAddress.toLowerCase()].maxPrice.dex = dexName;
+            usdPrices[tokenAddress.toLowerCase()].maxPrice.value = usdPrices[tokenAddress.toLowerCase()].prices[dexName];
+        }
     });
     // console.log('syncUsdPrices 4');
     delete result; // @todo
@@ -307,7 +329,7 @@ const getMostProfitable = async function (pairName, baseDexName) {
     // console.log('getMostProfitable 6');
     delete params; // @todo
 
-    Object.entries(result.results).forEach(function (value) {
+    Object.entries(result.results).forEach(async function (value) {
         const [dexName, result] = value;
 
         if (result.callsReturnContext[0].returnValues.length > 0
@@ -318,20 +340,22 @@ const getMostProfitable = async function (pairName, baseDexName) {
             const price1 = ethers.BigNumber.from(result.callsReturnContext[1].returnValues[1]);
             const percentage0 = (price0.sub(dexAmount0)).mul(100).div(dexAmount0);
             const percentage1 = (price1.sub(dexAmount1)).mul(100).div(dexAmount1);
-            const usdProfit0 = (price0.sub(dexAmount0)).mul(usdPrices[baseToken0.toLowerCase()][dexName]).div(ethers.utils.parseEther("1"));
-            const usdProfit1 = (price1.sub(dexAmount1)).mul(usdPrices[baseToken1.toLowerCase()][dexName]).div(ethers.utils.parseEther("1"));
+            const usdProfit0 = (price0.sub(dexAmount0)).mul(usdPrices[baseToken0.toLowerCase()].maxPrice.value).div(ethers.utils.parseEther("1"));
+            const usdProfit1 = (price1.sub(dexAmount1)).mul(usdPrices[baseToken1.toLowerCase()].maxPrice.value).div(ethers.utils.parseEther("1"));
 
             const endTime = (Date.now() - startTime) / 1000;
             if (usdProfit0.gte(ethers.utils.parseEther(usdProfitThreshold))) {
                 // if (percentage0.gte(percentageThreshold)) {
                 // const profitMark = usdProfit0.gte(ethers.utils.parseEther(usdProfitThreshold)) ? "/ !!!!!!!!!!!!!" : "";
 
+                const processed = await processSwap(baseToken1, dexAmount0, baseToken0, baseDexName, dexName);
+
                 console.log(
                     '[' + new Date().toISOString() + ']', endTime,
                     "/ Diff (0)", pairName, "/", baseToken0, "/", baseDexName, "->", dexName,
                     "/", ethers.utils.formatEther(dexAmount0), "->", ethers.utils.formatEther(price0),
                     "/ ", "$" + ethers.utils.formatEther(usdProfit0),
-                    "/", percentage0.toString() + "%"//, profitMark
+                    "/", percentage0.toString() + "%"/* , profitMark */, (processed ? "SWAPPED" : "SKIPPED")
                 );
             }
 
@@ -339,12 +363,14 @@ const getMostProfitable = async function (pairName, baseDexName) {
                 // if (percentage1.gte(percentageThreshold)) {
                 // const profitMark = usdProfit1.gte(ethers.utils.parseEther(usdProfitThreshold)) ? "/ !!!!!!!!!!!!!" : "";
 
+                const processed = await processSwap(baseToken0, dexAmount1, baseToken1, baseDexName, dexName);
+
                 console.log(
                     '[' + new Date().toISOString() + ']', endTime,
                     "/ Diff (1)", pairName, "/", baseToken1, "/", baseDexName, "->", dexName,
                     "/", ethers.utils.formatEther(dexAmount1), "->", ethers.utils.formatEther(price1),
                     "/", "$" + ethers.utils.formatEther(usdProfit1),
-                    "/", percentage1.toString() + "%"//, profitMark
+                    "/", percentage1.toString() + "%"/* , profitMark */, (processed ? "SWAPPED" : "SKIPPED")
                 );
             }
         }
@@ -374,13 +400,53 @@ const getCalls = function (token0, token1, amount0, amount1) {
     ];
 };
 
+const processSwap = async function (baseToken1, dexAmount0, baseToken0, baseDexName, dexName) {
+    if (processingSwap) {
+        return false;
+    }
+
+    processingSwap = true;
+
+    await flashswap.start(
+        await provider.getBlockNumber() + process.env.BLOCKNUMBER,
+        baseToken1,
+        dexAmount0,
+        baseToken0,
+        routerAddresses[baseDexName],
+        routerAddresses[dexName],
+        factoryAddresses[baseDexName],
+        {
+            gasLimit: process.env.GAS_LIMIT
+        }
+    );
+
+    if (baseToken0.toLowerCase() !== tokens.busd.toLowerCase()) {
+        console.log(baseToken0.toLowerCase(), usdPrices[baseToken0.toLowerCase()].maxPrice.dex, routerAddresses[usdPrices[baseToken0.toLowerCase()].maxPrice.dex]);
+
+        await flashswap.swapToUsd(
+            baseToken0,
+            tokens.busd,
+            routerAddresses[usdPrices[baseToken0.toLowerCase()].maxPrice.dex],
+            {
+                gasLimit: process.env.GAS_LIMIT
+            }
+        );
+    } else {
+        await flashswap.withdrawToken(baseToken0);
+    }
+
+    processingSwap = false;
+
+    return true;
+}
+
 async function main() {
     provider = new ethers.providers.WebSocketProvider(process.env.BSC_NETWORK_URL);
     signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
     multicall = new Multicall({ ethersProvider: provider, tryAggregate: true });
+    flashswap = new ethers.Contract(process.env.FLASHSWAP_ADDRESS, require("./abi/Flashswap.json"), signer);
 
     await parseConfig();
-
     await syncUsdPrices();
 
     console.log(usdPrices);
