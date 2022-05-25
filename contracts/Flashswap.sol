@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -83,7 +83,7 @@ contract Flashswap is Ownable, Pausable {
         )[1];
 
         return (
-            int256(amountRepay - _amountTokenPay), // our profit or loss; example output: BNB amount
+            int256(amountRepay) - int256(_amountTokenPay), // our profit or loss; example output: BNB amount
             amountOut // the amount we get from our input "_amountTokenPay"; example: BUSD amount
         );
     }
@@ -170,7 +170,7 @@ contract Flashswap is Ownable, Pausable {
             path,
             address(this),
             block.timestamp + 60
-        )[1];
+        );
 
         usdToken.transfer(owner(), usdToken.balanceOf(address(this)));
     }
@@ -180,7 +180,7 @@ contract Flashswap is Ownable, Pausable {
         token.transfer(owner(), token.balanceOf(address(this)));
     }
 
-    // pancake, pancakeV2, apeswap, kebab
+    // pancake, pancakeV2, apeswap, knightswap, kebab
     function pancakeCall(
         address _sender,
         uint256 _amount0,
@@ -250,7 +250,18 @@ contract Flashswap is Ownable, Pausable {
         execute(_sender, _amount0, _amount1, _data);
     }
 
+    // sushiswap
     function uniswapV2Call(
+        address _sender,
+        uint256 _amount0,
+        uint256 _amount1,
+        bytes calldata _data
+    ) external {
+        execute(_sender, _amount0, _amount1, _data);
+    }
+
+    // babyswap
+    function babyCall(
         address _sender,
         uint256 _amount0,
         uint256 _amount1,

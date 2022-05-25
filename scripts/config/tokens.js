@@ -8,18 +8,19 @@ module.exports = {
     // "dot": "0x7083609fce4d1d8dc0c979aab8c869ea2c873402",
     "xrp": "0x1d2f0da169ceb9fc7b3144628db156f3f6c60dbe",
     // "link": "0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd",
-    // "ada": "0x3ee2200efb3400fabb9aacf31297cbdd1d435d47",
+    "ada": "0x3ee2200efb3400fabb9aacf31297cbdd1d435d47",
     // "doge": "0xba2ae424d960c26247dd6c32edc70b295c744c43", // 8 decimals
     // "avax": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041",
     "shib": "0x2859e4544c4bb03966803b044a93563bd2d0dd4d",
     "trx": "0x85eac5ac2f758618dfa09bdbe0cf174e7d574d5b",
-    // "near": "0x1fa4a73a3f0133f0025378af00236f3abdee5d63",
+    "near": "0x1fa4a73a3f0133f0025378af00236f3abdee5d63",
     // "ltc": "0x4338665cbb7b2485a8855a139b75d5e34ab0db94",
     // "bch": "0x8ff795a6f4d97e7887c79bea79aba5cc76444adf",
     "btcb": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
     "luna": "0x156ab3346823B651294766e23e6Cf87254d68962",
     // "bake": "0xe02df9e3e622debdd69fb838bb799e3f168902c5",
     "twt": "0x4b0f1812e5df2a09796481ff14017e6005508003",
+    "ape": "0xC762043E211571eB34f1ef377e5e8e76914962f9",
     // "alpaca": "0x8f0528ce5ef7b51152a59745befdd91d97091d2f",
     // "cake": "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", // pancakeswap
     // "bsw": "0x965f527d9159dce6288a2219db51fc6eef120dd1", // biswap
@@ -29,4 +30,7 @@ module.exports = {
     // "mdx": "0x9C65AB58d8d978DB963e63f2bfB7121627e3a739", // mdex
     // "wad": "0x0feadcc3824e7f3c12f40e324a60c23ca51627fc", // wardenswap
     // "wings": "0x0487b824c8261462F88940f97053E65bDb498446", // jetswap
+    // "sushi": "0x947950BcC74888a40Ffa2593C5798F11Fc9124C4", // sushiswap
+    // "knight": "0xD23811058Eb6e7967D9a00dc3886E75610c4AbBa", // knightswap
+    // "baby": "0x53E562b9B7E5E94b81f10e96Ee70Ad06df3D2657", // babyswap
 };

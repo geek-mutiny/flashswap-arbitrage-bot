@@ -30,26 +30,20 @@ const usdPrices = {
     }
 };
 
-const amountToSwapPercentage = 15; // 10%
+const amountToSwapPercentage = 15; // 15%
 const percentageThreshold = 1; // 1%
 const usdProfitThreshold = "1"; // $1
 
-const getFactoryAbi = function (dex) {
-    return require("./abi/" + dex + "Factory.json");
-};
+const getFactoryAbi = dex => require("./abi/" + dex + "Factory.json");
 
-const getRouterAbi = function (dex) {
-    return require("./abi/" + dex + "Router.json");
-};
+const getRouterAbi = dex => require("./abi/" + dex + "Router.json");
 
-const getPairAbi = function (dex) {
-    return require("./abi/" + dex + "Pair.json");
-};
+const getPairAbi = dex => require("./abi/" + dex + "Pair.json");
 
-const parseConfig = async function () {
+const parseConfig = async () => {
     const params = [];
 
-    config.forEach(function (dex) {
+    config.forEach(dex => {
         const processedTokens = [];
         const calls = [];
 
@@ -60,12 +54,12 @@ const parseConfig = async function () {
         factoryAddresses[dex.name] = dex.factory;
         routerAddresses[dex.name] = dex.router;
 
-        Object.entries(tokens).forEach(function (token0) {
+        Object.entries(tokens).forEach(token0 => {
             const [tokenName0, tokenAddress0] = token0;
 
             processedTokens.push(tokenName0);
 
-            Object.entries(tokens).forEach(function (token1) {
+            Object.entries(tokens).forEach(token1 => {
                 const [tokenName1, tokenAddress1] = token1;
 
                 if (!processedTokens.includes(tokenName1)) {
@@ -92,10 +86,10 @@ const parseConfig = async function () {
 
     const pairsParams = [];
 
-    Object.entries(result.results).forEach(function (dexResults) {
+    Object.entries(result.results).forEach(dexResults => {
         const [dexName, dexPairs] = dexResults;
 
-        dexPairs.callsReturnContext.forEach(function (dexPair) {
+        dexPairs.callsReturnContext.forEach(dexPair => {
             const pairAddress = dexPair.returnValues[0];
             const pairName = dexPair.reference;
 
@@ -140,7 +134,7 @@ const parseConfig = async function () {
 
     delete pairsParams; // @todo
 
-    Object.entries(pairsResult.results).forEach(function (pairResults) {
+    Object.entries(pairsResult.results).forEach(pairResults => {
         const [pairDexName, pairData] = pairResults;
         const pairName = pairDexName.split("_")[0];
         const dexName = pairDexName.split("_")[1];
@@ -164,14 +158,40 @@ const parseConfig = async function () {
     delete pairsResult; // @todo
 };
 
-const syncUsdPrices = async function () {
+const findByProperty = (properties, object) => {
+    const result = {};
+
+    properties.forEach(property => {
+        if (typeof object[property] !== 'undefined') {
+            result[property] = object[property];
+        }
+    });
+
+    return result;
+};
+
+const findByValue = (values, object) => {
+    const result = {};
+    values = values.map(value => value.toLowerCase());
+
+    Object.entries(object).forEach(item => {
+        if (values.includes(item[1].toLowerCase())) {
+            result[item[0]] = item[1];
+        }
+    });
+
+    return result;
+};
+
+const syncUsdPrices = async (tokenAddresses, dexNames) => {
     const params = [];
-    // console.log('syncUsdPrices 1');
-    Object.entries(tokens).forEach(function (token) {
+    const syncTokens = typeof tokenAddresses === 'undefined' ? tokens : findByValue(tokenAddresses, tokens);
+    const syncRouters = typeof dexNames === 'undefined' ? routerAddresses : findByProperty(dexNames, routerAddresses);
+
+    Object.entries(syncTokens).forEach(token => {
         const [tokenName, tokenAddress] = token;
 
-
-        Object.entries(routerAddresses).forEach(function (router) {
+        Object.entries(syncRouters).forEach(router => {
             const [dexName, routerAddress] = router;
 
             if (tokenName !== "busd") {
@@ -194,12 +214,12 @@ const syncUsdPrices = async function () {
         });
 
     });
-    // console.log('syncUsdPrices 2');
+
     const result = await multicall.call(params);
-    // console.log('syncUsdPrices 3');
+
     delete params; // @todo
 
-    Object.entries(result.results).forEach(function (data) {
+    Object.entries(result.results).forEach(data => {
         const reference = data[0];
         const price = data[1].callsReturnContext[0].returnValues[1];
         const tokenAddress = reference.split("_")[0];
@@ -222,13 +242,13 @@ const syncUsdPrices = async function () {
             usdPrices[tokenAddress.toLowerCase()].maxPrice.value = usdPrices[tokenAddress.toLowerCase()].prices[dexName];
         }
     });
-    // console.log('syncUsdPrices 4');
+
     delete result; // @todo
 };
 
-const getMostProfitable = async function (pairName, baseDexName) {
+const getMostProfitable = async (pairName, baseDexName) => {
     const startTime = Date.now();
-    // console.log('getMostProfitable 1');
+
     const baseParams = [];
     const params = [];
     const dexes = {};
@@ -240,7 +260,7 @@ const getMostProfitable = async function (pairName, baseDexName) {
     const baseAmount0 = baseReserve0.mul(amountToSwapPercentage).div(100);
     const baseAmount1 = baseReserve1.mul(amountToSwapPercentage).div(100);
 
-    Object.entries(routerAddresses).forEach(function (router) {
+    Object.entries(routerAddresses).forEach(router => {
         const [dexName, routerAddress] = router;
 
         if (dexName !== baseDexName && typeof pairs[pairName][dexName] !== 'undefined') {
@@ -291,26 +311,24 @@ const getMostProfitable = async function (pairName, baseDexName) {
             }
         }
     });
-    // console.log('getMostProfitable 2');
+
     const baseResult = await multicall.call(baseParams);
-    // console.log('getMostProfitable 3');
+
     delete baseParams; // @todo
 
-    Object.entries(baseResult.results).forEach(function (value) {
+    Object.entries(baseResult.results).forEach(value => {
         const reference = value[0];
         const result = value[1];
 
         basePrices[reference] = {
             "price0": result.callsReturnContext[0].returnValues[1],
             "price1": result.callsReturnContext[1].returnValues[1],
-            // "price0": result.callsReturnContext[0].returnValues.length > 0 ? result.callsReturnContext[0].returnValues[1] : ethers.BigNumber.from(0),
-            // "price1": result.callsReturnContext[1].returnValues.length > 0 ? result.callsReturnContext[1].returnValues[1] : ethers.BigNumber.from(0),
         };
     });
 
     delete baseResult; // @todo
-    // console.log('getMostProfitable 4');
-    Object.entries(dexes).forEach(function (value) {
+
+    Object.entries(dexes).forEach(value => {
         const dex = value[1];
         const reference = dex.amount0.toString() + "-" + dex.amount1.toString();
         const dexParams = dex.params;
@@ -324,12 +342,12 @@ const getMostProfitable = async function (pairName, baseDexName) {
 
         params.push(dexParams);
     });
-    // console.log('getMostProfitable 5');
+
     const result = await multicall.call(params);
-    // console.log('getMostProfitable 6');
+
     delete params; // @todo
 
-    Object.entries(result.results).forEach(async function (value) {
+    Object.entries(result.results).forEach(async value => {
         const [dexName, result] = value;
 
         if (result.callsReturnContext[0].returnValues.length > 0
@@ -347,22 +365,20 @@ const getMostProfitable = async function (pairName, baseDexName) {
             if (usdProfit0.gte(ethers.utils.parseEther(usdProfitThreshold))) {
                 // if (percentage0.gte(percentageThreshold)) {
                 // const profitMark = usdProfit0.gte(ethers.utils.parseEther(usdProfitThreshold)) ? "/ !!!!!!!!!!!!!" : "";
-
                 const processed = await processSwap(baseToken1, dexAmount0, baseToken0, baseDexName, dexName);
 
                 console.log(
                     '[' + new Date().toISOString() + ']', endTime,
                     "/ Diff (0)", pairName, "/", baseToken0, "/", baseDexName, "->", dexName,
                     "/", ethers.utils.formatEther(dexAmount0), "->", ethers.utils.formatEther(price0),
-                    "/ ", "$" + ethers.utils.formatEther(usdProfit0),
-                    "/", percentage0.toString() + "%"/* , profitMark */, (processed ? "SWAPPED" : "SKIPPED")
+                    "/", "$" + ethers.utils.formatEther(usdProfit0),
+                    "/", percentage0.toString() + "%" /* , profitMark */, (processed ? "SWAPPED" : "SKIPPED")
                 );
             }
 
             if (usdProfit1.gte(ethers.utils.parseEther(usdProfitThreshold))) {
                 // if (percentage1.gte(percentageThreshold)) {
                 // const profitMark = usdProfit1.gte(ethers.utils.parseEther(usdProfitThreshold)) ? "/ !!!!!!!!!!!!!" : "";
-
                 const processed = await processSwap(baseToken0, dexAmount1, baseToken1, baseDexName, dexName);
 
                 console.log(
@@ -370,37 +386,35 @@ const getMostProfitable = async function (pairName, baseDexName) {
                     "/ Diff (1)", pairName, "/", baseToken1, "/", baseDexName, "->", dexName,
                     "/", ethers.utils.formatEther(dexAmount1), "->", ethers.utils.formatEther(price1),
                     "/", "$" + ethers.utils.formatEther(usdProfit1),
-                    "/", percentage1.toString() + "%"/* , profitMark */, (processed ? "SWAPPED" : "SKIPPED")
+                    "/", percentage1.toString() + "%" /* , profitMark */, (processed ? "SWAPPED" : "SKIPPED")
                 );
             }
         }
     });
-    // console.log('getMostProfitable 7');
+
     delete result; // @todo
 };
 
-const getCalls = function (token0, token1, amount0, amount1) {
-    return [
-        {
-            reference: 'price1',
-            methodName: 'getAmountsOut',
-            methodParameters: [
-                amount1,
-                [token1, token0]
-            ]
-        },
-        {
-            reference: 'price0',
-            methodName: 'getAmountsOut',
-            methodParameters: [
-                amount0,
-                [token0, token1]
-            ]
-        },
-    ];
-};
+const getCalls = (token0, token1, amount0, amount1) => [
+    {
+        reference: 'price1',
+        methodName: 'getAmountsOut',
+        methodParameters: [
+            amount1,
+            [token1, token0]
+        ]
+    },
+    {
+        reference: 'price0',
+        methodName: 'getAmountsOut',
+        methodParameters: [
+            amount0,
+            [token0, token1]
+        ]
+    },
+];
 
-const processSwap = async function (baseToken1, dexAmount0, baseToken0, baseDexName, dexName) {
+const processSwap = async (baseToken1, dexAmount0, baseToken0, baseDexName, dexName) => {
     if (processingSwap) {
         return false;
     }
@@ -421,8 +435,6 @@ const processSwap = async function (baseToken1, dexAmount0, baseToken0, baseDexN
     );
 
     if (baseToken0.toLowerCase() !== tokens.busd.toLowerCase()) {
-        console.log(baseToken0.toLowerCase(), usdPrices[baseToken0.toLowerCase()].maxPrice.dex, routerAddresses[usdPrices[baseToken0.toLowerCase()].maxPrice.dex]);
-
         await flashswap.swapToUsd(
             baseToken0,
             tokens.busd,
@@ -451,21 +463,22 @@ async function main() {
 
     console.log(usdPrices);
 
-    setInterval(function () {
-        syncUsdPrices();
-    }, 3000);
-
     // Listen for price updates
-    Object.entries(pairContracts).forEach(async function (pair) {
+    Object.entries(pairContracts).forEach(async pair => {
         const pairName = pair[0];
 
-        Object.entries(pair[1]).forEach(async function (pairContract) {
+        Object.entries(pair[1]).forEach(async pairContract => {
             const dexName = pairContract[0];
             console.log("Listen", dexName, pairName);
 
             pairContract[1].on("Sync", async (reserve0, reserve1) => {
                 pairs[pairName][dexName][0].reserve = reserve0;
                 pairs[pairName][dexName][1].reserve = reserve1;
+
+                syncUsdPrices(
+                    [pairs[pairName][dexName][0].token, pairs[pairName][dexName][1].token],
+                    [dexName]
+                );
 
                 await getMostProfitable(pairName, dexName);
             });
@@ -474,7 +487,6 @@ async function main() {
 }
 
 main()
-    // .then(() => process.exit(0))
     .catch((error) => {
         console.error(error);
         process.exit(1);

@@ -1,7 +1,3 @@
-/*
-cheese swap
-bakery swap
-*/
 module.exports = [
     {
         "name": "pancakeswap",
@@ -42,5 +38,20 @@ module.exports = [
         "name": "jetswap",
         "factory": "0x0eb58E5c8aA63314ff5547289185cC4583DfCBD5",
         "router": "0xBe65b8f75B9F20f4C522e0067a3887FADa714800",
+    },
+    {
+        "name": "sushiswap",
+        "factory": "0xc35DADB65012eC5796536bD9864eD8773aBc74C4",
+        "router": "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+    },
+    {
+        "name": "knightswap",
+        "factory": "0xf0bc2E21a76513aa7CC2730C7A1D6deE0790751f",
+        "router": "0x05E61E0cDcD2170a76F9568a110CEe3AFdD6c46f",
+    },
+    {
+        "name": "babyswap",
+        "factory": "0x86407bEa2078ea5f5EB5A52B2caA963bC1F889Da",
+        "router": "0x325E343f1dE602396E256B67eFd1F61C3A6B38Bd",
     },
 ];
